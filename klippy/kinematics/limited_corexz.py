@@ -32,7 +32,7 @@
 # max_x_accel and max_y_accel.
 # When scale_xy_accel is True, max_x_accel and max_y_accel are scaled by
 # the ratio of the dynamically set acceleration and the hypotenuse of
-# max_x_accel and max_y_accel, as reported from `SET_KINEMATICS_LIMIT`.
+# max_x_accel and max_y_accel, as reported from `SET_KINEMATICS_LIMIT_VERBOSE`.
 # This means that the actual acceleration will always depend on the
 # direction.
 # For example with these settings:
@@ -40,7 +40,7 @@
 # max_x_accel: 12000
 # max_y_accel: 9000
 # scale_xy_accel: true
-# SET_KINEMATICS_LIMIT will report a maximum acceleration of 15000 mm/s^2
+# SET_KINEMATICS_LIMIT_VERBOSE will report a maximum acceleration of 15000 mm/s^2
 # on 37 degrees diagonals. Thus, setting an acceleration of 3000 mm/s^2 in
 # the slicer will make the toolhead accelerate at 3000 mm/s^2 on these 37
 # and 143 degrees diagonals, but only 12000 * 3000 / 15000 = 2400 mm/s^2
@@ -72,8 +72,25 @@ class LimitedCoreXZKinematics(corexz.CoreXZKinematics):
         config.get_printer().lookup_object("gcode").register_command(
             "SET_KINEMATICS_LIMIT", self.cmd_SET_KINEMATICS_LIMIT
         )
+        config.get_printer().lookup_object("gcode").register_command(
+            "SET_KINEMATICS_LIMIT_VERBOSE", self.cmd_SET_KINEMATICS_LIMIT
+        )
 
     def cmd_SET_KINEMATICS_LIMIT(self, gcmd):
+        self.max_velocities = [
+            gcmd.get_float("%s_VELOCITY" % ax, max_v, above=0.0)
+            for max_v, ax in zip(self.max_velocities, "XYZ")
+        ]
+        self.max_accels = [
+            gcmd.get_float("%s_ACCEL" % ax, max_a, above=0.0)
+            for max_a, ax in zip(self.max_accels, "XYZ")
+        ]
+        self.xy_hypot_accel = hypot(*self.max_accels[:2])
+        self.scale_per_axis = bool(
+            gcmd.get_int("SCALE", self.scale_per_axis, minval=0, maxval=1)
+        )
+
+    def cmd_SET_KINEMATICS_LIMIT_VERBOSE(self, gcmd):
         self.max_velocities = [
             gcmd.get_float("%s_VELOCITY" % ax, max_v, above=0.0)
             for max_v, ax in zip(self.max_velocities, "XYZ")

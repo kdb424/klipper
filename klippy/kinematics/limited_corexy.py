@@ -45,7 +45,14 @@ class LimitedCoreXYKinematics(corexy.CoreXYKinematics):
         self.scale_per_axis = config.getboolean('scale_xy_accel', False)
         config.get_printer().lookup_object('gcode').register_command(
             'SET_KINEMATICS_LIMIT', self.cmd_SET_KINEMATICS_LIMIT)
+        config.get_printer().lookup_object('gcode').register_command(
+            'SET_KINEMATICS_LIMIT_VERBOSE', self.cmd_SET_KINEMATICS_LIMIT_VERBOSE)
     def cmd_SET_KINEMATICS_LIMIT(self,gcmd):
+        self.max_x_accel = gcmd.get_float('X_ACCEL', self.max_x_accel, above=0.)
+        self.max_y_accel = gcmd.get_float('Y_ACCEL', self.max_y_accel, above=0.)
+        self.max_z_accel = gcmd.get_float('Z_ACCEL', self.max_z_accel, above=0.)
+        self.scale_per_axis = bool(gcmd.get_int('SCALE', self.scale_per_axis, minval=0, maxval=1))
+    def cmd_SET_KINEMATICS_LIMIT_VERBOSE(self,gcmd):
         self.max_x_accel = gcmd.get_float('X_ACCEL', self.max_x_accel, above=0.)
         self.max_y_accel = gcmd.get_float('Y_ACCEL', self.max_y_accel, above=0.)
         self.max_z_accel = gcmd.get_float('Z_ACCEL', self.max_z_accel, above=0.)
