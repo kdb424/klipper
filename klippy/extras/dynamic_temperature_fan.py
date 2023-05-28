@@ -1,4 +1,4 @@
-# Support fans that are enabled when temperature exceeds a set threshold
+# Support fans that are temperature controlled
 #
 # Copyright (C) 2016-2020  Kevin O'Connor <kevin@koconnor.net>
 #
@@ -11,7 +11,7 @@ AMBIENT_TEMP = 25.0
 PID_PARAM_BASE = 255.0
 
 
-class TemperatureFan:
+class DynamicTemperatureFan:
     def __init__(self, config):
         self.name = config.get_name().split()[1]
         self.printer = config.get_printer()
@@ -28,6 +28,8 @@ class TemperatureFan:
         self.max_speed = self.max_speed_conf
         self.min_speed_conf = config.getfloat("min_speed", 0.3, minval=0.0, maxval=1.0)
         self.min_speed = self.min_speed_conf
+        self.ramp_down_conf = config.getboolean("ramp_down", False)
+        self.ramp_down = self.ramp_down_conf
         self.enable = False
         self.last_temp = 0.0
         self.last_temp_time = 0.0
@@ -45,11 +47,13 @@ class TemperatureFan:
         self.last_speed_value = 0.0
         gcode = self.printer.lookup_object("gcode")
         gcode.register_mux_command(
-            "SET_CHAMBER_HEATER_FAN_TARGET",
-            "CHAMBER_HEATER_FAN",
+            "SET_DYNAMIC_FAN_TARGET",
+            "SET_DYNAMIC_FAN_TEMPERATURE_LIMITS",
+            "SET_DYNAMIC_ENABLE",
+            "DYNAMIC_FAN",
             self.name,
-            self.cmd_SET_CHAMBER_HEATER_FAN_TARGET,
-            desc=self.cmd_SET_CHAMBER_HEATER_FAN_TARGET_help,
+            self.cmd_SET_DYNAMIC_FAN_TARGET,
+            desc=self.cmd_SET_DYNAMIC_FAN_TARGET_help,
         )
 
     def set_speed(self, read_time, value):
@@ -89,26 +93,33 @@ class TemperatureFan:
         return status
 
     def calculate_fan_speed(self):
-        # (100 - ((input - min) * 100) / (max - min)) / 100
-        # abs(((input - min)/(max-min))-1)
-        target_speed = abs(
-            (
+        # Calculations simplified for visibility
+        if self.ramp_down:
+            # Ramp down
+            # abs(((input - min)/(max - min)))
+            target_speed = abs(
+                (
+                    (self.temperature_last_temp - self.min_temp)
+                    / (self.target_temp - self.min_temp)
+                )
+                - 1
+            )
+        else:
+            # Ramp up
+            # abs((input - min)/(max - min) -1)
+            target_speed = abs(
                 (self.temperature_last_temp - self.min_temp)
                 / (self.target_temp - self.min_temp)
             )
-            - 1
-        )
         if target_speed <= self.min_speed:
             target_speed = self.min_speed
         elif target_speed >= self.max_speed:
             target_speed = self.max_speed
         self.target_fan.set_speed(read_time, target_speed)
 
-    cmd_SET_CHAMBER_HEATER_FAN_TARGET_help = (
-        "Sets a chamber temperature fan speed limits"
-    )
+    cmd_SET_DYNAMIC_FAN_TARGET_help = "Sets a temperature fan speed limits"
 
-    def cmd_SET_CHAMBER_HEATER_FAN_TARGET(self, gcmd):
+    def cmd_SET_DYNAMIC_FAN_TARGET(self, gcmd):
         temp = gcmd.get_float("TARGET", self.target_temp_conf)
         self.set_temp(temp)
         min_speed = gcmd.get_float("MIN_SPEED", self.min_speed)
@@ -121,9 +132,9 @@ class TemperatureFan:
         self.set_min_speed(min_speed)
         self.set_max_speed(max_speed)
 
-    cmd_SET_CHAMBER_HEATER_TEMPERATURE_LIMITS_help = "Sets a chamber temperature target"
+    cmd_SET_DYNAMIC_TEMPERATURE_LIMITS_help = "Sets a temperature target"
 
-    def cmd_SET_CHAMBER_HEATER_TEMPERATURE_LIMITS(self, gcmd):
+    def cmd_SET_DYNAMIC_TEMPERATURE_LIMITS(self, gcmd):
         temp = gcmd.get_float("TARGET", self.target_temp_conf)
         self.set_temp(temp)
         min_temp = gcmd.get_float("MIN_TEMP", self.min_temp)
@@ -136,11 +147,11 @@ class TemperatureFan:
         self.set_min_temp(min_temp)
         self.set_max_temp(max_temp)
 
-    cmd_SET_CHAMBER_HEATER_FAN_ENABLE_help = (
-        "Enables and disables the chamber temperature fan being able to turn on."
+    cmd_SET_DYNAMIC_FAN_ENABLE_help = (
+        "Enables and disables the temperature fan being able to turn on."
     )
 
-    def cmd_SET_CHAMBER_HEATER_FAN_ENABLE(self, gcmd):
+    def cmd_SET_DYNAMIC_FAN_ENABLE(self, gcmd):
         enable = gcmd.get_int("ENABLE", None, minval=0, maxval=1)
         self.set_enable(enable)
 
@@ -203,4 +214,4 @@ class ControlBangBang:
 
 
 def load_config_prefix(config):
-    return TemperatureFan(config)
+    return DynamicTemperatureFan(config)
