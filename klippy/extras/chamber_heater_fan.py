@@ -45,11 +45,11 @@ class TemperatureFan:
         self.last_speed_value = 0.0
         gcode = self.printer.lookup_object("gcode")
         gcode.register_mux_command(
-            "SET_CHAMBER_HEATER_TEMPERATURE_FAN_TARGET",
-            "CHAMBER_HEATER_TEMPERATURE_FAN",
+            "SET_CHAMBER_HEATER_FAN_TARGET",
+            "CHAMBER_HEATER_FAN",
             self.name,
-            self.cmd_SET_CHAMBER_HEATER_TEMPERATURE_FAN_TARGET,
-            desc=self.cmd_SET_CHAMBER_HEATER_TEMPERATURE_FAN_TARGET_help,
+            self.cmd_SET_CHAMBER_HEATER_FAN_TARGET,
+            desc=self.cmd_SET_CHAMBER_HEATER_FAN_TARGET_help,
         )
 
     def set_speed(self, read_time, value):
@@ -96,7 +96,7 @@ class TemperatureFan:
                 (self.temperature_last_temp - self.min_temp)
                 / (self.target_temp - self.min_temp)
             )
-            / 100
+            - 1
         )
         if target_speed <= self.min_speed:
             target_speed = self.min_speed
@@ -104,11 +104,11 @@ class TemperatureFan:
             target_speed = self.max_speed
         self.target_fan.set_speed(read_time, target_speed)
 
-    cmd_SET_CHAMBER_HEATER_TEMPERATURE_FAN_TARGET_help = (
-        "Sets a chamber temperature fan target and fan speed limits"
+    cmd_SET_CHAMBER_HEATER_FAN_TARGET_help = (
+        "Sets a chamber temperature fan speed limits"
     )
 
-    def cmd_SET_CHAMBER_HEATER_TEMPERATURE_FAN_TARGET(self, gcmd):
+    def cmd_SET_CHAMBER_HEATER_FAN_TARGET(self, gcmd):
         temp = gcmd.get_float("TARGET", self.target_temp_conf)
         self.set_temp(temp)
         min_speed = gcmd.get_float("MIN_SPEED", self.min_speed)
@@ -121,11 +121,26 @@ class TemperatureFan:
         self.set_min_speed(min_speed)
         self.set_max_speed(max_speed)
 
-    cmd_SET_CHAMBER_HEATER_TEMPERATURE_FAN_ENABLE_help = (
+    cmd_SET_CHAMBER_HEATER_TEMPERATURE_LIMITS_help = "Sets a chamber temperature target"
+
+    def cmd_SET_CHAMBER_HEATER_TEMPERATURE_LIMITS(self, gcmd):
+        temp = gcmd.get_float("TARGET", self.target_temp_conf)
+        self.set_temp(temp)
+        min_temp = gcmd.get_float("MIN_TEMP", self.min_temp)
+        max_temp = gcmd.get_float("MAX_TEMP", self.max_temp)
+        if min_temp > max_temp:
+            raise self.printer.command_error(
+                "Requested min temp (%.1f) is greater than max temp (%.1f)"
+                % (min_temp, max_temp)
+            )
+        self.set_min_temp(min_temp)
+        self.set_max_temp(max_temp)
+
+    cmd_SET_CHAMBER_HEATER_FAN_ENABLE_help = (
         "Enables and disables the chamber temperature fan being able to turn on."
     )
 
-    def cmd_SET_CHAMBER_HEATER_TEMPERATURE_FAN_ENABLE(self, gcmd):
+    def cmd_SET_CHAMBER_HEATER_FAN_ENABLE(self, gcmd):
         enable = gcmd.get_int("ENABLE", None, minval=0, maxval=1)
         self.set_enable(enable)
 
